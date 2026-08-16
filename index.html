@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Eco Match - สุ่มคำถาม</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,"Noto Sans Thai",sans-serif;background:linear-gradient(135deg,#e8f7ec,#e7f4ff);color:#173b2a}
+.container{max-width:1050px;margin:auto;padding:20px}
+header{text-align:center}
+h1{font-size:clamp(28px,6vw,46px);margin:4px 0}
+.sub{color:#527263}
+.info{display:flex;justify-content:center;gap:9px;flex-wrap:wrap;margin:16px 0}
+.badge{background:white;padding:9px 15px;border-radius:999px;box-shadow:0 3px 12px #0001}
+button{border:0;border-radius:12px;padding:10px 18px;background:#26794a;color:white;font-weight:bold;cursor:pointer}
+.game{display:grid;grid-template-columns:1fr 1.6fr;gap:18px}
+.panel{background:#ffffffd9;border-radius:20px;padding:18px;box-shadow:0 5px 20px #0001}
+.panel h2{margin:0 0 14px;font-size:20px}
+.words{display:flex;flex-direction:column;gap:10px}
+.word{background:#fff;border:2px solid #72b88b;border-radius:13px;padding:12px;cursor:grab;font-weight:700;user-select:none}
+.word.dragging{opacity:.4}
+.definition{display:grid;grid-template-columns:1fr 155px;align-items:center;gap:12px;background:white;border-radius:14px;padding:12px;margin-bottom:10px;min-height:82px}
+.deftext{line-height:1.45}
+.drop{min-height:54px;border:2px dashed #9ab9a6;border-radius:12px;display:flex;align-items:center;justify-content:center;text-align:center;padding:6px;color:#789080;font-size:14px}
+.drop.over{border-color:#26794a;background:#e9f8ed}
+.drop.correct{border-style:solid;border-color:#3c9b5c;background:#dff5e4;color:#17622f}
+.drop.wrong{border-color:#c95b5b;background:#fff0f0;animation:shake .25s}
+.result{text-align:center;font-weight:700;font-size:18px;min-height:32px;margin:15px}
+@keyframes shake{25%{transform:translateX(-5px)}50%{transform:translateX(5px)}75%{transform:translateX(-4px)}}
+@media(max-width:700px){.game{grid-template-columns:1fr}.definition{grid-template-columns:1fr}.drop{min-height:48px}}
+</style>
+</head>
+<body>
+<div class="container">
+<header>
+<div style="font-size:44px">🌱♻️🌍</div>
+<h1>Eco Match</h1>
+<p class="sub">ลาก “คำหลัก” ไปวางข้าง “คำจำกัดความ” ที่ตรงกัน</p>
+<div class="info">
+<div class="badge">ชุดที่: <b id="round">1</b></div>
+<div class="badge">คะแนน: <b id="score">0</b></div>
+<div class="badge">ถูก: <b id="correct">0</b>/8</div>
+<div class="badge">ผิด: <b id="wrong">0</b></div>
+<button onclick="newRound()">🔄 คำถามชุดใหม่</button>
+</div>
+</header>
+
+<div class="game">
+<section class="panel">
+<h2>🟢 คำหลัก</h2>
+<div id="words" class="words"></div>
+</section>
+<section class="panel">
+<h2>📖 คำจำกัดความ</h2>
+<div id="defs"></div>
+</section>
+</div>
+<div id="result" class="result"></div>
+</div>
+
+<script>
+const bank=[
+["ระบบนิเวศ","สิ่งมีชีวิตและสิ่งไม่มีชีวิตที่มีปฏิสัมพันธ์กันในพื้นที่หนึ่ง"],
+["ความหลากหลายทางชีวภาพ","ความหลากหลายของสิ่งมีชีวิต ยีน และระบบนิเวศ"],
+["ภาวะโลกร้อน","การเพิ่มขึ้นของอุณหภูมิเฉลี่ยของโลกในระยะยาว"],
+["ก๊าซเรือนกระจก","ก๊าซในบรรยากาศที่ดูดกลืนและกักเก็บความร้อน"],
+["ไมโครพลาสติก","ชิ้นส่วนพลาสติกที่มีขนาดเล็กมาก โดยทั่วไปต่ำกว่า 5 มม."],
+["การรีไซเคิล","การนำวัสดุที่ใช้แล้วกลับมาแปรรูปเพื่อใช้ประโยชน์อีกครั้ง"],
+["ยูโทรฟิเคชัน","ภาวะที่แหล่งน้ำมีสารอาหารมากเกินไป ทำให้สาหร่ายเพิ่มจำนวนมาก"],
+["พลังงานหมุนเวียน","พลังงานจากแหล่งธรรมชาติที่สามารถเกิดทดแทนได้ เช่น แสงอาทิตย์และลม"],
+["ห่วงโซ่อาหาร","ลำดับการถ่ายทอดพลังงานจากสิ่งมีชีวิตหนึ่งไปยังอีกสิ่งมีชีวิตหนึ่ง"],
+["ผู้ผลิต","สิ่งมีชีวิตที่สร้างอาหารเองได้ เช่น พืชและสาหร่าย"],
+["ผู้บริโภค","สิ่งมีชีวิตที่ได้รับพลังงานโดยการกินสิ่งมีชีวิตอื่น"],
+["การย่อยสลาย","กระบวนการที่จุลินทรีย์ย่อยซากสิ่งมีชีวิตและอินทรียวัตถุ"],
+["มลพิษทางอากาศ","สารหรืออนุภาคที่ปนเปื้อนในอากาศและอาจก่อให้เกิดผลกระทบ"],
+["ฝนกรด","ฝนที่มีความเป็นกรดสูงจากมลพิษบางชนิดในบรรยากาศ"],
+["การอนุรักษ์","การใช้และดูแลทรัพยากรธรรมชาติอย่างเหมาะสมเพื่อให้คงอยู่"],
+["ทรัพยากรธรรมชาติ","สิ่งที่เกิดขึ้นตามธรรมชาติและมนุษย์สามารถนำมาใช้ประโยชน์ได้"],
+["คาร์บอนฟุตพรินต์","ปริมาณการปล่อยก๊าซเรือนกระจกที่เกิดจากกิจกรรมหนึ่ง"],
+["ภาวะเรือนกระจก","ปรากฏการณ์ที่ก๊าซบางชนิดในบรรยากาศกักเก็บความร้อน"],
+["ขยะอินทรีย์","ขยะที่ย่อยสลายได้ เช่น เศษอาหารและใบไม้"],
+["การทำปุ๋ยหมัก","การนำวัสดุอินทรีย์มาผ่านกระบวนการย่อยสลายจนกลายเป็นปุ๋ย"],
+["น้ำเสีย","น้ำที่มีสิ่งปนเปื้อนหรือคุณภาพเปลี่ยนไปจนไม่เหมาะสมต่อการใช้ประโยชน์"],
+["มลพิษทางน้ำ","การปนเปื้อนของสารหรือสิ่งต่าง ๆ ในน้ำจนทำให้คุณภาพน้ำเสื่อม"],
+["การใช้ซ้ำ","การนำสิ่งของเดิมกลับมาใช้ใหม่โดยไม่ผ่านการแปรรูป"],
+["ลดการใช้","การลดปริมาณการใช้ทรัพยากรหรือสิ่งของที่ไม่จำเป็น"],
+["พลังงานแสงอาทิตย์","พลังงานที่ได้จากรังสีของดวงอาทิตย์และนำมาเปลี่ยนเป็นพลังงานใช้ประโยชน์"]
+];
+
+let score=0,correct=0,wrong=0,round=0,current=[];
+
+function shuffle(a){return [...a].sort(()=>Math.random()-.5)}
+
+function newRound(){
+ round++;score=0;correct=0;wrong=0;
+ current=shuffle(bank).slice(0,8);
+ document.getElementById("round").textContent=round;
+ document.getElementById("score").textContent=0;
+ document.getElementById("correct").textContent=0;
+ document.getElementById("wrong").textContent=0;
+ document.getElementById("result").textContent="🎲 สุ่มคำถามชุดใหม่แล้ว!";
+ const w=document.getElementById("words"),d=document.getElementById("defs");
+ w.innerHTML="";d.innerHTML="";
+
+ shuffle(current).forEach(item=>{
+   const el=document.createElement("div");
+   el.className="word";el.draggable=true;el.dataset.answer=item[0];el.textContent=item[0];
+   el.addEventListener("dragstart",e=>{
+     e.dataTransfer.setData("text/plain",item[0]);el.classList.add("dragging");
+   });
+   el.addEventListener("dragend",()=>el.classList.remove("dragging"));
+   w.appendChild(el);
+ });
+
+ shuffle(current).forEach(item=>{
+   const row=document.createElement("div");row.className="definition";
+   row.innerHTML=`<div class="deftext">${item[1]}</div><div class="drop" data-answer="${item[0]}">ลากคำหลักมาวางที่นี่</div>`;
+   const drop=row.querySelector(".drop");
+   drop.addEventListener("dragover",e=>{e.preventDefault();drop.classList.add("over")});
+   drop.addEventListener("dragleave",()=>drop.classList.remove("over"));
+   drop.addEventListener("drop",e=>{
+     e.preventDefault();drop.classList.remove("over");
+     if(drop.classList.contains("correct"))return;
+     const answer=e.dataTransfer.getData("text/plain");
+     if(answer===drop.dataset.answer){
+       drop.classList.add("correct");drop.textContent="✓ "+answer;
+       const word=[...document.querySelectorAll(".word")].find(x=>x.dataset.answer===answer);
+       if(word){word.style.visibility="hidden";word.draggable=false}
+       correct++;score+=100;
+       document.getElementById("result").textContent="✅ ถูกต้อง!";
+       if(correct===8){
+         score+=Math.max(0,100-wrong*10);
+         document.getElementById("result").textContent=`🎉 จบชุดที่ ${round}! คะแนน ${score} — กด “คำถามชุดใหม่” เพื่อเล่นต่อ`;
+       }
+     }else{
+       wrong++;score=Math.max(0,score-20);
+       drop.classList.add("wrong");
+       setTimeout(()=>drop.classList.remove("wrong"),300);
+       document.getElementById("result").textContent="❌ ยังไม่ถูก ลองอีกครั้ง";
+     }
+     document.getElementById("score").textContent=score;
+     document.getElementById("correct").textContent=correct;
+     document.getElementById("wrong").textContent=wrong;
+   });
+   d.appendChild(row);
+ });
+}
+newRound();
+</script>
+</body>
+</html>
